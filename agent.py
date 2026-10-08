@@ -2,12 +2,14 @@
 import os
 import re
 import sqlite3
-from typing import Literal, TypedDict
+from typing import Annotated, Literal, TypedDict
 from dotenv import load_dotenv
 from pydantic import BaseModel
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, START, StateGraph
+from langgraph.graph.message import add_messages
 
 load_dotenv()
 DB_PATH = os.getenv("DB_PATH", "sample.db")
@@ -60,6 +62,9 @@ def check_sql(sql):
 
 CLASSIFY_PROMPT = """You are the first step of an assistant that works ONLY with one specific database.
 The database has these tables: {tables}
+Conversation history:
+{history}
+
 Previous query in this chat: {last_sql}
 
 Pick one intent for the user's message:
@@ -79,7 +84,10 @@ GENERATE_PROMPT = """You write SQLite queries using ONLY this schema:
 
 Rules:
 - Return one read-only SELECT query. Never invent tables or columns.
-- If there is a previous query and the request is a follow-up, change that query instead of starting over.
+- Use the conversation history when interpreting follow-ups. If there is a previous query and the request is a follow-up, change that query instead of starting over.
+
+Conversation history:
+{history}
 
 Task: {task}
 Previous query: {last_sql}
@@ -123,6 +131,7 @@ class SQLResult(BaseModel):
 
 class State(TypedDict, total=False):
     question: str
+    messages: Annotated[list, add_messages]
     intent: str
     user_sql: str
     clarification: str
@@ -138,9 +147,20 @@ class State(TypedDict, total=False):
 
 # Node Functions
 
+def format_history(messages):
+    lines = []
+    for message in messages:
+        role = "User" if isinstance(message, HumanMessage) else "Assistant"
+        lines.append(f"{role}: {message.content}")
+    return "\n".join(lines) or "No previous conversation."
+
 def classify(state):
-    tables, _ = get_schema() 
-    prompt = CLASSIFY_PROMPT.format(tables=", ".join(tables), last_sql=state.get("last_sql", "none"))
+    tables, _ = get_schema()
+    history = format_history(state.get("messages", [])[:-1])
+    prompt = CLASSIFY_PROMPT.format(
+        tables=", ".join(tables),
+        history=history,
+        last_sql=state.get("last_sql", "none"))
     result = llm.with_structured_output(Intent).invoke(
         [("system", prompt), ("human", state["question"])])
 
@@ -169,7 +189,7 @@ def reject(state):
     else:
         tables, _ = get_schema()
         reply = OUT_OF_SCOPE_MSG.format(tables=", ".join(tables))
-    return {"reply": reply, "sql": ""}
+    return {"reply": reply, "sql": "", "messages": [AIMessage(content=reply)]}
 
 
 def generate(state):
@@ -180,6 +200,7 @@ def generate(state):
                       f"Last try: {state['sql']}\nPlease fix it.")
     prompt = GENERATE_PROMPT.format(
         schema=schema, task=TASKS[state["intent"]],
+        history=format_history(state.get("messages", [])[:-1]),
         last_sql=state.get("last_sql", "none"),
         user_sql=state["user_sql"] or "none", retry_note=retry_note)
     result = llm.with_structured_output(SQLResult).invoke(
@@ -216,7 +237,7 @@ def execute(state):
 def explain(state):
     response = llm.invoke(EXPLAIN_PROMPT.format(sql=state["sql"], notes=state["notes"] or "none"))
     reply = response.text
-    return {"reply": reply, "last_sql": state["sql"]}
+    return {"reply": reply, "last_sql": state["sql"], "messages": [AIMessage(content=reply)]}
 
 
 # Graph
@@ -243,7 +264,10 @@ workflow = graph.compile(checkpointer=SqliteSaver(checkpoint_connection))
 
 def ask(question, session_id="default"):
     #Run one chat message. Same session_id = same conversation.
-    return workflow.invoke({"question": question}, {"configurable": {"thread_id": session_id}})
+    return workflow.invoke(
+        {"question": question, "messages": [HumanMessage(content=question)]},
+        {"configurable": {"thread_id": session_id}}
+    )
 
 
 if __name__ == "__main__":

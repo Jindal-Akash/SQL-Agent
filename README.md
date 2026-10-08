@@ -119,3 +119,6 @@ Orders(OrderID, CustomerID, OrderDate, Amount)           CustomerID -> Customers
 - Results are limited to 100 rows.
 - Each browser page load starts a new conversation. Conversations are stored in a local SQLite file, which may be wiped when the server redeploys.
 - The deployed app uses Gemini API key from Railway's environment variables.
+
+## Maintains Optimum Conversational Context
+![alt text](image-1.png)
