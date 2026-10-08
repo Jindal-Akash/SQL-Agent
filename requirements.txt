@@ -4,3 +4,4 @@ pydantic
 fastapi
 uvicorn
 python-dotenv
+langgraph-checkpoint-sqlite
