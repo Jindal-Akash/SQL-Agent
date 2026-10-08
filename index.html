@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SQL Assistant</title>
+<style>
+  * { box-sizing: border-box; }
+
+  :root {
+    --bg: #f7f8fa;
+    --panel: #ffffff;
+    --panel-soft: #f3f4f6;
+    --border: #e5e7eb;
+    --text: #111827;
+    --muted: #6b7280;
+    --primary: #2563eb;
+    --primary-soft: #eff6ff;
+    --user: #2563eb;
+    --assistant: #f3f4f6;
+    --code: #111827;
+    --code-text: #e5e7eb;
+    --danger: #dc2626;
+  }
+
+  body {
+    margin: 0;
+    height: 100vh;
+    overflow: hidden;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+
+  button, input {
+    font: inherit;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  #app {
+    height: 100vh;
+    display: grid;
+    grid-template-columns: 250px minmax(420px, 1fr) minmax(430px, 0.9fr);
+  }
+
+  /* Sidebar */
+
+  #sidebar {
+    border-right: 1px solid var(--border);
+    background: #fbfbfc;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .brand {
+    height: 64px;
+    display: flex;
+    align-items: center;
+    padding: 0 18px;
+    border-bottom: 1px solid var(--border);
+    font-size: 17px;
+    font-weight: 700;
+  }
+
+  .brand-mark {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: var(--primary);
+    color: white;
+    display: grid;
+    place-items: center;
+    margin-right: 10px;
+    font-size: 14px;
+  }
+
+  .new-chat {
+    margin: 14px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: white;
+    color: var(--text);
+    text-align: left;
+    font-weight: 600;
+  }
+
+  .new-chat:hover {
+    background: var(--panel-soft);
+  }
+
+  .section-title {
+    padding: 4px 14px 8px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+  }
+
+  #sessions {
+    overflow-y: auto;
+    padding: 0 8px 12px;
+  }
+
+  .session {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 10px;
+    margin-bottom: 2px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--text);
+    text-align: left;
+    font-size: 13px;
+  }
+
+  .session:hover {
+    background: #eef0f3;
+  }
+
+  .session.active {
+    background: #e8eefc;
+    color: #1745a3;
+    font-weight: 600;
+  }
+
+  .session-icon {
+    flex: 0 0 auto;
+    color: var(--muted);
+  }
+
+  .session-name {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .sidebar-footer {
+    margin-top: auto;
+    padding: 12px 14px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.5;
+  }
+
+  /* Chat */
+
+  #chat-panel {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--panel);
+  }
+
+  .panel-header {
+    height: 64px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+  }
+
+  .header-title {
+    font-weight: 650;
+    font-size: 15px;
+  }
+
+  .header-subtitle {
+    color: var(--muted);
+    font-size: 11px;
+    margin-top: 2px;
+  }
+
+  #messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .welcome {
+    max-width: 600px;
+    margin: auto;
+    text-align: center;
+  }
+
+  .welcome h1 {
+    font-size: 25px;
+    margin: 0 0 8px;
+  }
+
+  .welcome p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .quick-prompts {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 20px;
+  }
+
+  .quick-prompt {
+    padding: 8px 11px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: white;
+    color: #374151;
+    font-size: 12px;
+    transition: background .15s, border-color .15s;
+  }
+
+  .quick-prompt:hover {
+    background: var(--primary-soft);
+    border-color: #bfdbfe;
+    color: #1745a3;
+  }
+
+  .message-row {
+    display: flex;
+    width: 100%;
+  }
+
+  .message-row.user {
+    justify-content: flex-end;
+  }
+
+  .message-row.assistant {
+    justify-content: flex-start;
+  }
+
+  .msg {
+    max-width: min(78%, 720px);
+    padding: 11px 14px;
+    border-radius: 12px;
+    font-size: 14px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .msg.user {
+    background: var(--user);
+    color: white;
+    border-bottom-right-radius: 4px;
+  }
+
+  .msg.assistant {
+    background: var(--assistant);
+    color: var(--text);
+    border-bottom-left-radius: 4px;
+  }
+
+  .msg.error {
+    background: #fef2f2;
+    color: var(--danger);
+    border: 1px solid #fecaca;
+  }
+
+  .typing {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--muted);
+  }
+
+  .dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #9ca3af;
+    animation: pulse 1.2s infinite;
+  }
+
+  .dot:nth-child(2) { animation-delay: .15s; }
+  .dot:nth-child(3) { animation-delay: .3s; }
+
+  @keyframes pulse {
+    0%, 60%, 100% { opacity: .35; }
+    30% { opacity: 1; }
+  }
+
+  #composer {
+    border-top: 1px solid var(--border);
+    padding: 14px 20px 16px;
+    background: var(--panel);
+  }
+
+  #form {
+    display: flex;
+    align-items: flex-end;
+    gap: 9px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  #input {
+    flex: 1;
+    min-width: 0;
+    resize: none;
+    min-height: 44px;
+    max-height: 140px;
+    padding: 11px 13px;
+    border: 1px solid #d1d5db;
+    border-radius: 10px;
+    outline: none;
+    background: white;
+    color: var(--text);
+  }
+
+  #input:focus {
+    border-color: #93b4f7;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, .08);
+  }
+
+  #send {
+    height: 44px;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 9px;
+    background: var(--primary);
+    color: white;
+    font-weight: 600;
+  }
+
+  #send:disabled {
+    opacity: .55;
+    cursor: default;
+  }
+
+  /* Right panel */
+
+  #workspace {
+    min-width: 0;
+    border-left: 1px solid var(--border);
+    display: grid;
+    grid-template-rows: 1fr 1fr;
+    background: #fafafa;
+  }
+
+  .workspace-section {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--panel);
+  }
+
+  .workspace-section + .workspace-section {
+    border-top: 1px solid var(--border);
+  }
+
+  .workspace-header {
+    height: 46px;
+    flex: 0 0 46px;
+    padding: 0 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .workspace-title {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+
+  .workspace-action {
+    padding: 5px 9px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: white;
+    color: var(--muted);
+    font-size: 11px;
+  }
+
+  .workspace-action:hover {
+    background: var(--panel-soft);
+    color: var(--text);
+  }
+
+  #sql {
+    flex: 1;
+    overflow: auto;
+    margin: 0;
+    padding: 16px;
+    background: var(--code);
+    color: var(--code-text);
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    font-size: 12px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .placeholder {
+    color: #9ca3af;
+  }
+
+  #results {
+    flex: 1;
+    overflow: auto;
+    padding: 12px;
+  }
+
+  .result-placeholder {
+    color: var(--muted);
+    font-size: 13px;
+    padding: 8px 4px;
+  }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 12px;
+  }
+
+  th, td {
+    border-bottom: 1px solid var(--border);
+    padding: 8px 9px;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  th {
+    position: sticky;
+    top: 0;
+    background: #f8fafc;
+    font-weight: 650;
+  }
+
+  .empty-result {
+    color: var(--muted);
+    font-size: 13px;
+    padding: 8px 4px;
+  }
+
+  @media (max-width: 1100px) {
+    #app {
+      grid-template-columns: 220px minmax(380px, 1fr);
+    }
+
+    #workspace {
+      display: none;
+    }
+  }
+
+  @media (max-width: 760px) {
+    body {
+      overflow: auto;
+    }
+
+    #app {
+      height: auto;
+      min-height: 100vh;
+      grid-template-columns: 1fr;
+    }
+
+    #sidebar {
+      display: none;
+    }
+
+    #chat-panel {
+      min-height: 100vh;
+    }
+
+    #workspace {
+      display: grid;
+      height: 700px;
+      border-left: 0;
+      border-top: 1px solid var(--border);
+    }
+  }
+</style>
+</head>
+
+<body>
+<div id="app">
+
+  <aside id="sidebar">
+    <div class="brand">
+      <div class="brand-mark">SQL</div>
+      SQL Assistant
+    </div>
+
+    <button id="newChat" class="new-chat">＋ New chat</button>
+
+    <div class="section-title">Conversations</div>
+    <div id="sessions"></div>
+
+    <div class="sidebar-footer">
+      Read-only database assistant<br>
+      Conversations are kept in this browser.
+    </div>
+  </aside>
+
+  <section id="chat-panel">
+    <div class="panel-header">
+      <div>
+        <div id="chatTitle" class="header-title">New conversation</div>
+        <div class="header-subtitle">Natural language → validated SQL</div>
+      </div>
+    </div>
+
+    <div id="messages"></div>
+
+    <div id="composer">
+      <form id="form">
+        <textarea
+          id="input"
+          rows="1"
+          placeholder="Ask about the data..."
+          autocomplete="off"
+        ></textarea>
+        <button id="send" type="submit">Send</button>
+      </form>
+    </div>
+  </section>
+
+  <aside id="workspace">
+
+    <section class="workspace-section">
+      <div class="workspace-header">
+        <div class="workspace-title">SQL</div>
+        <button id="copy" class="workspace-action" type="button">Copy</button>
+      </div>
+      <pre id="sql"><span class="placeholder">The generated SQL will appear here.</span></pre>
+    </section>
+
+    <section class="workspace-section">
+      <div class="workspace-header">
+        <div class="workspace-title">Results</div>
+      </div>
+      <div id="results">
+        <div class="result-placeholder">Query results will appear here.</div>
+      </div>
+    </section>
+
+  </aside>
+
+</div>
+
+<script>
+  const STORAGE_KEY = "sql_assistant_sessions_v2";
+
+  const sessionsBox = document.getElementById("sessions");
+  const messages = document.getElementById("messages");
+  const form = document.getElementById("form");
+  const input = document.getElementById("input");
+  const send = document.getElementById("send");
+  const sqlBox = document.getElementById("sql");
+  const resultsBox = document.getElementById("results");
+  const copyBtn = document.getElementById("copy");
+  const newChatBtn = document.getElementById("newChat");
+  const chatTitle = document.getElementById("chatTitle");
+
+  let sessions = loadSessions();
+  let activeSessionId = null;
+
+  function loadSessions() {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function saveSessions() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
+  }
+
+  function createSession() {
+    const id = crypto.randomUUID();
+
+    sessions[id] = {
+      id,
+      title: "New conversation",
+      messages: [],
+      sql: "",
+      columns: [],
+      rows: []
+    };
+
+    activeSessionId = id;
+    saveSessions();
+    renderSessions();
+    renderConversation();
+  }
+
+  function getActiveSession() {
+    return sessions[activeSessionId];
+  }
+
+  function titleFromMessage(text) {
+    const clean = text.replace(/\s+/g, " ").trim();
+
+    if (!clean) return "New conversation";
+
+    return clean.length > 32
+      ? clean.slice(0, 32).trimEnd() + "..."
+      : clean;
+  }
+
+  function renderSessions() {
+    sessionsBox.textContent = "";
+
+    const ids = Object.keys(sessions).reverse();
+
+    if (!ids.length) {
+      const empty = document.createElement("div");
+      empty.className = "sidebar-footer";
+      empty.textContent = "No conversations yet.";
+      sessionsBox.appendChild(empty);
+      return;
+    }
+
+    ids.forEach(id => {
+      const session = sessions[id];
+
+      const button = document.createElement("button");
+      button.className = "session" + (id === activeSessionId ? " active" : "");
+      button.type = "button";
+
+      const icon = document.createElement("span");
+      icon.className = "session-icon";
+      icon.textContent = "◌";
+
+      const name = document.createElement("span");
+      name.className = "session-name";
+      name.textContent = session.title;
+
+      button.appendChild(icon);
+      button.appendChild(name);
+
+      button.addEventListener("click", () => {
+        activeSessionId = id;
+        renderSessions();
+        renderConversation();
+      });
+
+      sessionsBox.appendChild(button);
+    });
+  }
+
+  function addMessage(text, type) {
+    const row = document.createElement("div");
+    row.className = "message-row " + type;
+
+    const message = document.createElement("div");
+    message.className = "msg " + type;
+    message.textContent = text;
+
+    row.appendChild(message);
+    messages.appendChild(row);
+    messages.scrollTop = messages.scrollHeight;
+
+    return row;
+  }
+
+  function addTyping() {
+    const row = document.createElement("div");
+    row.className = "message-row assistant";
+
+    const message = document.createElement("div");
+    message.className = "msg assistant typing";
+    message.innerHTML = '<span>Thinking</span><span class="dot"></span><span class="dot"></span><span class="dot"></span>';
+
+    row.appendChild(message);
+    messages.appendChild(row);
+    messages.scrollTop = messages.scrollHeight;
+
+    return row;
+  }
+
+  function renderConversation() {
+    const session = getActiveSession();
+
+    messages.textContent = "";
+    chatTitle.textContent = session.title;
+
+    if (!session.messages.length) {
+      const welcome = document.createElement("div");
+      welcome.className = "welcome";
+      welcome.innerHTML = `
+        <h1>Ask your database</h1>
+        <p>Generate, optimize and debug read-only SQL using natural language.</p>
+        <div class="quick-prompts">
+          <button class="quick-prompt" type="button">Show all employees</button>
+          <button class="quick-prompt" type="button">How many employees are there?</button>
+          <button class="quick-prompt" type="button">List all departments</button>
+          <button class="quick-prompt" type="button">Show all customers</button>
+          <button class="quick-prompt" type="button">Show all orders</button>
+        </div>
+      `;
+      messages.appendChild(welcome);
+
+      welcome.querySelectorAll(".quick-prompt").forEach(button => {
+        button.addEventListener("click", () => sendMessage(button.textContent));
+      });
+    } else {
+      session.messages.forEach(message => {
+        addMessage(message.text, message.role);
+      });
+    }
+
+    renderWorkspace(session);
+  }
+
+  function renderWorkspace(session) {
+    if (session.sql) {
+      sqlBox.textContent = session.sql;
+      sqlBox.classList.remove("placeholder");
+    } else {
+      sqlBox.innerHTML = '<span class="placeholder">The generated SQL will appear here.</span>';
+    }
+
+    if (session.columns && session.columns.length) {
+      showTable(session.columns, session.rows || []);
+    } else {
+      resultsBox.innerHTML = '<div class="result-placeholder">Query results will appear here.</div>';
+    }
+  }
+
+  function showTable(columns, rows) {
+    if (!rows.length) {
+      resultsBox.innerHTML = '<div class="empty-result">No rows returned.</div>';
+      return;
+    }
+
+    const table = document.createElement("table");
+    const head = table.insertRow();
+
+    columns.forEach(column => {
+      const th = document.createElement("th");
+      th.textContent = column;
+      head.appendChild(th);
+    });
+
+    rows.forEach(row => {
+      const tr = table.insertRow();
+
+      row.forEach(value => {
+        const td = tr.insertCell();
+        td.textContent = value === null ? "NULL" : value;
+      });
+    });
+
+    resultsBox.textContent = "";
+    resultsBox.appendChild(table);
+  }
+
+  async function sendMessage(text) {
+    const session = getActiveSession();
+
+    session.messages.push({
+      role: "user",
+      text
+    });
+
+    if (session.title === "New conversation") {
+      session.title = titleFromMessage(text);
+    }
+
+    saveSessions();
+    renderSessions();
+    renderConversation();
+
+    send.disabled = true;
+    input.disabled = true;
+
+    const loading = addTyping();
+
+    try {
+      const res = await fetch("/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          message: text,
+          session_id: session.id
+        })
+      });
+
+      const data = await res.json();
+
+      loading.remove();
+
+      if (!res.ok) {
+        addMessage(data.error || "Something went wrong.", "error");
+        return;
+      }
+
+      session.messages.push({
+        role: "assistant",
+        text: data.reply || "Done."
+      });
+
+      if (data.sql) {
+        session.sql = data.sql;
+        session.columns = data.columns || [];
+        session.rows = data.rows || [];
+      }
+
+      saveSessions();
+      renderConversation();
+
+    } catch (err) {
+      loading.remove();
+      addMessage("Could not reach the server. Please try again.", "error");
+    } finally {
+      send.disabled = false;
+      input.disabled = false;
+      input.focus();
+    }
+  }
+
+  form.addEventListener("submit", async event => {
+    event.preventDefault();
+
+    const text = input.value.trim();
+
+    if (!text || send.disabled) return;
+
+    input.value = "";
+    input.style.height = "44px";
+
+    await sendMessage(text);
+  });
+
+  input.addEventListener("input", () => {
+    input.style.height = "44px";
+    input.style.height = Math.min(input.scrollHeight, 140) + "px";
+  });
+
+  input.addEventListener("keydown", event => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      form.requestSubmit();
+    }
+  });
+
+  newChatBtn.addEventListener("click", () => {
+    createSession();
+    input.focus();
+  });
+
+  copyBtn.addEventListener("click", async () => {
+    const session = getActiveSession();
+
+    if (!session.sql) return;
+
+    await navigator.clipboard.writeText(session.sql);
+
+    const oldText = copyBtn.textContent;
+    copyBtn.textContent = "Copied";
+
+    setTimeout(() => {
+      copyBtn.textContent = oldText;
+    }, 1200);
+  });
+
+  const savedIds = Object.keys(sessions);
+
+  if (savedIds.length) {
+    activeSessionId = savedIds[savedIds.length - 1];
+    renderSessions();
+    renderConversation();
+  } else {
+    createSession();
+  }
+</script>
+</body>
+</html>

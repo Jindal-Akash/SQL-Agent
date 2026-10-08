@@ -1,6 +1,6 @@
 langgraph
 langchain-google-genai
-sqlglot
 pydantic
 fastapi
 uvicorn
+python-dotenv
